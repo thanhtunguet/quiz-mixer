@@ -193,7 +193,7 @@
             }
 
             const header = data[0];
-            // CẬP NHẬT 2: Lọc bỏ các hàng trống, chỉ giữ lại các hàng có nội dung câu hỏi ở cột B (index 1)
+            // Lọc bỏ các hàng trống, chỉ giữ lại các hàng có nội dung câu hỏi ở cột B (index 1)
             let questions = data.slice(1).filter(row => row && row[1] && row[1].toString().trim() !== '');
 
             if (questions.length === 0) {
@@ -201,7 +201,7 @@
                 return;
             }
 
-            // CẬP NHẬT 3: Lấy số lần trộn từ người dùng
+            // Lấy số lần trộn từ người dùng
             const shuffleCount = parseInt(shuffleCountInput.value, 10) || 1;
 
             for (let i = 0; i < shuffleCount; i++) {
@@ -251,7 +251,7 @@
          */
         function displayPreview(data) {
             resultTable.innerHTML = '';
-            const header = data[0];
+            const header = data[0]; // Giả sử header là ["STT", "Câu hỏi", ...]
             const previewData = data.slice(1, 11);
 
             // Tạo a header
@@ -259,8 +259,13 @@
             thead.className = "bg-gray-200 text-gray-700";
             const headerRow = document.createElement('tr');
 
-            // CẬP NHẬT 1: Thêm ô trống ở đầu header để căn chỉnh
-            header.forEach(text => {
+            // CẬP NHẬT: Thêm một ô th trống ở đầu để căn chỉnh với cột STT của body
+            const emptyTh = document.createElement('th');
+            emptyTh.className = "p-3 font-semibold tracking-wide";
+            headerRow.appendChild(emptyTh); // Ô này để trống
+
+            // Bắt đầu lặp từ phần tử thứ hai của header (index 1), để hiển thị các tiêu đề cột dữ liệu
+            header.slice(1).forEach(text => {
                 const th = document.createElement('th');
                 th.className = "p-3 font-semibold tracking-wide";
                 th.textContent = text;
