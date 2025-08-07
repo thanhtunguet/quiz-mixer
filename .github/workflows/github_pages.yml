@@ -1,0 +1,48 @@
+# Tên của workflow
+name: Deploy to GitHub Pages
+
+# Chạy workflow này mỗi khi có một commit được đẩy lên nhánh `main`
+on:
+  push:
+    branches:
+      - main
+
+# Cho phép workflow này tạo một deployment trên GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Chỉ cho phép một lần triển khai tại một thời điểm cho nhóm này
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+# Các công việc (jobs) sẽ được thực thi
+jobs:
+  # Công việc triển khai
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      # Bước 1: Checkout mã nguồn từ kho lưu trữ
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Bước 2: Thiết lập GitHub Pages
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      # Bước 3: Tải lên artifact (toàn bộ thư mục gốc) để triển khai
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # Tải lên toàn bộ kho lưu trữ
+          path: "."
+
+      # Bước 4: Triển khai lên GitHub Pages
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
