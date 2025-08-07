@@ -28,6 +28,12 @@
         table td {
             border: 1px solid #e2e8f0;
             padding: 8px 12px;
+            text-align: left;
+        }
+
+        /* Style cho header của hàng trong tbody */
+        tbody th {
+            background-color: #f7fafc;
         }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -73,14 +79,19 @@
                         2</div>
                     <h2 class="text-2xl font-semibold ml-4">Chọn Sheet & Tùy chỉnh</h2>
                 </div>
-                <div class="grid md:grid-cols-2 gap-6 mt-4 ml-14">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4 ml-14">
                     <div>
                         <label for="sheetSelector" class="block mb-2 font-medium text-gray-700">Chọn sheet cần xử
                             lý:</label>
                         <select id="sheetSelector"
                             class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"></select>
                     </div>
-                    <div class="flex items-center justify-start pt-4">
+                    <div>
+                        <label for="shuffleCountInput" class="block mb-2 font-medium text-gray-700">Số lần trộn:</label>
+                        <input type="number" id="shuffleCountInput" value="1" min="1"
+                            class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                    </div>
+                    <div class="md:col-span-2 flex items-center justify-start pt-2">
                         <input type="checkbox" id="shuffleAnswersCheckbox"
                             class="h-5 w-5 text-green-600 border-gray-300 rounded focus:ring-green-500">
                         <label for="shuffleAnswersCheckbox" class="ml-3 text-base font-medium text-gray-700">Trộn thứ tự
@@ -113,7 +124,7 @@
                     </div>
                     <div class="mt-4 overflow-x-auto">
                         <p class="text-sm text-gray-500 mb-2">Xem trước 10 câu hỏi đầu tiên trong bộ đề đã trộn:</p>
-                        <table id="resultTable" class="w-full text-sm text-left border-collapse">
+                        <table id="resultTable" class="w-full text-sm border-collapse">
                             <!-- Nội dung bảng sẽ được tạo bằng JavaScript -->
                         </table>
                     </div>
@@ -131,6 +142,7 @@
         const fileInput = document.getElementById('fileInput');
         const controlsContainer = document.getElementById('controlsContainer');
         const sheetSelector = document.getElementById('sheetSelector');
+        const shuffleCountInput = document.getElementById('shuffleCountInput');
         const processButton = document.getElementById('processButton');
         const outputContainer = document.getElementById('outputContainer');
         const resultTable = document.getElementById('resultTable');
@@ -145,29 +157,21 @@
             const reader = new FileReader();
             reader.onload = (e) => {
                 const data = new Uint8Array(e.target.result);
-                // Đọc file Excel bằng SheetJS
                 workbook = XLSX.read(data, { type: 'array' });
-
-                // Xóa các lựa chọn cũ và thêm lựa chọn mặc định
                 sheetSelector.innerHTML = '<option value="">-- Vui lòng chọn một sheet --</option>';
-
-                // Thêm tên các sheet vào dropdown
                 workbook.SheetNames.forEach(name => {
                     const option = document.createElement('option');
                     option.value = name;
                     option.textContent = name;
                     sheetSelector.appendChild(option);
                 });
-
-                // Hiển thị phần điều khiển
                 controlsContainer.classList.remove('hidden');
-                outputContainer.classList.add('hidden'); // Ẩn kết quả cũ nếu có
-                processButton.disabled = true; // Vô hiệu hóa nút xử lý
+                outputContainer.classList.add('hidden');
+                processButton.disabled = true;
             };
             reader.readAsArrayBuffer(file);
         });
 
-        // Kích hoạt nút "Bắt đầu trộn" khi người dùng đã chọn một sheet
         sheetSelector.addEventListener('change', () => {
             processButton.disabled = !sheetSelector.value;
         });
@@ -180,7 +184,6 @@
                 return;
             }
 
-            // Chuyển sheet thành dạng mảng các mảng (array of arrays)
             const worksheet = workbook.Sheets[sheetName];
             const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
@@ -189,70 +192,56 @@
                 return;
             }
 
-            // Tách dòng header và các dòng dữ liệu (câu hỏi)
             const header = data[0];
-            let questions = data.slice(1);
+            // CẬP NHẬT 2: Lọc bỏ các hàng trống, chỉ giữ lại các hàng có nội dung câu hỏi ở cột B (index 1)
+            let questions = data.slice(1).filter(row => row && row[1] && row[1].toString().trim() !== '');
 
-            // 1. Trộn thứ tự các câu hỏi
-            shuffleArray(questions);
+            if (questions.length === 0) {
+                alert('Không tìm thấy câu hỏi nào hợp lệ trong sheet được chọn.');
+                return;
+            }
 
-            // CẬP NHẬT: Đánh lại số thứ tự cho cột A sau khi trộn
+            // CẬP NHẬT 3: Lấy số lần trộn từ người dùng
+            const shuffleCount = parseInt(shuffleCountInput.value, 10) || 1;
+
+            for (let i = 0; i < shuffleCount; i++) {
+                // 1. Trộn thứ tự các câu hỏi
+                shuffleArray(questions);
+
+                // 2. Trộn thứ tự đáp án nếu người dùng chọn
+                if (shuffleAnswersCheckbox.checked) {
+                    questions.forEach(questionRow => {
+                        const answersPart = questionRow.slice(2, 8);
+                        const existingAnswers = answersPart.filter(ans => ans != null && ans.toString().trim() !== '');
+                        shuffleArray(existingAnswers);
+                        for (let j = 0; j < 6; j++) {
+                            questionRow[j + 2] = j < existingAnswers.length ? existingAnswers[j] : '';
+                        }
+                    });
+                }
+            }
+
+            // Đánh lại số thứ tự cho cột A sau khi đã trộn xong
             questions.forEach((questionRow, index) => {
                 questionRow[0] = index + 1;
             });
 
-            // 2. Trộn thứ tự đáp án nếu người dùng chọn
-            if (shuffleAnswersCheckbox.checked) {
-                questions.forEach(questionRow => {
-                    // Các đáp án nằm ở cột C đến H (index 2 đến 7)
-                    const answersPart = questionRow.slice(2, 8);
-
-                    // Lọc ra các đáp án có nội dung (không rỗng, không null/undefined)
-                    const existingAnswers = answersPart.filter(ans => ans != null && ans.toString().trim() !== '');
-
-                    // Trộn các đáp án có nội dung này
-                    shuffleArray(existingAnswers);
-
-                    // Gán lại các đáp án đã trộn vào hàng câu hỏi, giữ nguyên các ô trống
-                    // Đặt các đáp án đã trộn vào đầu (C, D, ...) và các ô còn lại làm rỗng
-                    for (let i = 0; i < 6; i++) { // Lặp qua 6 cột đáp án C-H
-                        if (i < existingAnswers.length) {
-                            questionRow[i + 2] = existingAnswers[i];
-                        } else {
-                            questionRow[i + 2] = ''; // Xóa các ô đáp án không dùng đến
-                        }
-                    }
-                });
-            }
-
-            // Ghép lại header và dữ liệu đã xử lý
             processedData = [header, ...questions];
-
-            // Hiển thị kết quả và nút tải về
             displayPreview(processedData);
             outputContainer.classList.remove('hidden');
         });
 
-        // Hàm tải file Excel đã trộn
         downloadButton.addEventListener('click', () => {
-            // Tạo một worksheet mới từ dữ liệu đã xử lý
             const newWorksheet = XLSX.utils.aoa_to_sheet(processedData);
-            // Tạo một workbook mới
             const newWorkbook = XLSX.utils.book_new();
-            // Thêm worksheet vào workbook
             XLSX.utils.book_append_sheet(newWorkbook, newWorksheet, 'BoDeDaTron');
-            // Xuất file
             XLSX.writeFile(newWorkbook, 'BoCauHoi_DaTron.xlsx');
         });
 
-        /**
-         * Hàm trộn một mảng sử dụng thuật toán Fisher-Yates.
-         * @param {Array} array Mảng cần trộn.
-         */
         function shuffleArray(array) {
             for (let i = array.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
-                [array[i], array[j]] = [array[j], array[i]]; // ES6 swap
+                [array[i], array[j]] = [array[j], array[i]];
             }
         }
 
@@ -261,17 +250,19 @@
          * @param {Array<Array<any>>} data Dữ liệu để hiển thị.
          */
         function displayPreview(data) {
-            resultTable.innerHTML = ''; // Xóa nội dung cũ
+            resultTable.innerHTML = '';
             const header = data[0];
-            const previewData = data.slice(1, 11); // Chỉ hiển thị 10 dòng đầu
+            const previewData = data.slice(1, 11);
 
             // Tạo a header
             const thead = document.createElement('thead');
             thead.className = "bg-gray-200 text-gray-700";
             const headerRow = document.createElement('tr');
+
+            // CẬP NHẬT 1: Thêm ô trống ở đầu header để căn chỉnh
             header.forEach(text => {
                 const th = document.createElement('th');
-                th.className = "p-3 font-semibold tracking-wide text-left";
+                th.className = "p-3 font-semibold tracking-wide";
                 th.textContent = text;
                 headerRow.appendChild(th);
             });
@@ -284,11 +275,17 @@
             previewData.forEach(rowData => {
                 const tr = document.createElement('tr');
                 tr.className = "bg-white hover:bg-gray-50";
-                rowData.forEach(cellData => {
-                    const td = document.createElement('td');
-                    td.className = "p-3 text-gray-700 whitespace-nowrap";
-                    td.textContent = cellData;
-                    tr.appendChild(td);
+                rowData.forEach((cellData, index) => {
+                    // Cột đầu tiên (STT) dùng thẻ <th> để nhấn mạnh
+                    const cell = index === 0 ? document.createElement('th') : document.createElement('td');
+                    if (index === 0) {
+                        cell.scope = "row";
+                        cell.className = "p-3 font-semibold";
+                    } else {
+                        cell.className = "p-3 text-gray-700 whitespace-nowrap";
+                    }
+                    cell.textContent = cellData;
+                    tr.appendChild(cell);
                 });
                 tbody.appendChild(tr);
             });
