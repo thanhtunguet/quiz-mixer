@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Công cụ trộn câu hỏi trắc nghiệm</title>
+    <!-- Tải Tailwind CSS để giao diện đẹp hơn -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tải thư viện SheetJS (xlsx) để đọc và ghi file Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        /* Thêm một vài style tùy chỉnh để giao diện thân thiện hơn */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .step-card {
+            transition: all 0.3s ease-in-out;
+        }
+        .step-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+        table th, table td {
+            border: 1px solid #e2e8f0;
+            padding: 8px 12px;
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-blue-600">Công cụ Trộn Câu Hỏi Trắc Nghiệm</h1>
+            <p class="mt-2 text-lg text-gray-600">Tải file Excel, chọn sheet và tùy chỉnh để tạo bộ đề mới.</p>
+        </header>
+
+        <div class="max-w-5xl mx-auto bg-white p-6 rounded-2xl shadow-lg">
+            
+            <!-- Bước 1: Chọn File -->
+            <div class="step-card border-l-4 border-blue-500 p-6 rounded-lg bg-gray-50 mb-6">
+                <div class="flex items-center">
+                    <div class="bg-blue-500 text-white rounded-full w-10 h-10 flex items-center justify-center font-bold text-xl">1</div>
+                    <h2 class="text-2xl font-semibold ml-4">Chọn File Excel</h2>
+                </div>
+                <p class="text-gray-600 mt-2 ml-14">Chọn file có định dạng .xlsx hoặc .xls chứa bộ câu hỏi của bạn.</p>
+                <div class="mt-4 ml-14">
+                    <input type="file" id="fileInput" class="block w-full text-sm text-gray-500
+                        file:mr-4 file:py-2 file:px-4
+                        file:rounded-full file:border-0
+                        file:text-sm file:font-semibold
+                        file:bg-blue-50 file:text-blue-700
+                        hover:file:bg-blue-100"
+                        accept=".xlsx, .xls">
+                </div>
+            </div>
+
+            <!-- Bước 2: Chọn Sheet và Tùy chỉnh -->
+            <div id="controlsContainer" class="step-card border-l-4 border-green-500 p-6 rounded-lg bg-gray-50 mb-6 hidden">
+                 <div class="flex items-center">
+                    <div class="bg-green-500 text-white rounded-full w-10 h-10 flex items-center justify-center font-bold text-xl">2</div>
+                    <h2 class="text-2xl font-semibold ml-4">Chọn Sheet & Tùy chỉnh</h2>
+                </div>
+                <div class="grid md:grid-cols-2 gap-6 mt-4 ml-14">
+                    <div>
+                        <label for="sheetSelector" class="block mb-2 font-medium text-gray-700">Chọn sheet cần xử lý:</label>
+                        <select id="sheetSelector" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"></select>
+                    </div>
+                    <div class="flex items-center justify-start pt-4">
+                        <input type="checkbox" id="shuffleAnswersCheckbox" class="h-5 w-5 text-green-600 border-gray-300 rounded focus:ring-green-500">
+                        <label for="shuffleAnswersCheckbox" class="ml-3 text-base font-medium text-gray-700">Trộn thứ tự các đáp án (C-H)?</label>
+                    </div>
+                </div>
+                <div class="mt-6 ml-14">
+                    <button id="processButton" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition duration-300 transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed" disabled>
+                        Bắt đầu trộn
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Vùng hiển thị kết quả và tải về -->
+            <div id="outputContainer" class="hidden mt-8">
+                 <div class="step-card border-l-4 border-purple-500 p-6 rounded-lg bg-gray-50">
+                    <div class="flex items-center">
+                        <div class="bg-purple-500 text-white rounded-full w-10 h-10 flex items-center justify-center font-bold text-xl">3</div>
+                        <h2 class="text-2xl font-semibold ml-4">Kết Quả & Tải Về</h2>
+                    </div>
+                    <div class="flex justify-end mt-4">
+                        <button id="downloadButton" class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300">
+                            Tải File Excel Đã Trộn
+                        </button>
+                    </div>
+                    <div class="mt-4 overflow-x-auto">
+                        <p class="text-sm text-gray-500 mb-2">Xem trước 10 câu hỏi đầu tiên trong bộ đề đã trộn:</p>
+                        <table id="resultTable" class="w-full text-sm text-left border-collapse">
+                            <!-- Nội dung bảng sẽ được tạo bằng JavaScript -->
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Khai báo các biến toàn cục để lưu trạng thái
+        let workbook = null;
+        let processedData = [];
+
+        // Lấy các element từ DOM
+        const fileInput = document.getElementById('fileInput');
+        const controlsContainer = document.getElementById('controlsContainer');
+        const sheetSelector = document.getElementById('sheetSelector');
+        const processButton = document.getElementById('processButton');
+        const outputContainer = document.getElementById('outputContainer');
+        const resultTable = document.getElementById('resultTable');
+        const downloadButton = document.getElementById('downloadButton');
+        const shuffleAnswersCheckbox = document.getElementById('shuffleAnswersCheckbox');
+
+        // Hàm xử lý khi người dùng chọn file
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const data = new Uint8Array(e.target.result);
+                // Đọc file Excel bằng SheetJS
+                workbook = XLSX.read(data, { type: 'array' });
+                
+                // Xóa các lựa chọn cũ và thêm lựa chọn mặc định
+                sheetSelector.innerHTML = '<option value="">-- Vui lòng chọn một sheet --</option>';
+                
+                // Thêm tên các sheet vào dropdown
+                workbook.SheetNames.forEach(name => {
+                    const option = document.createElement('option');
+                    option.value = name;
+                    option.textContent = name;
+                    sheetSelector.appendChild(option);
+                });
+
+                // Hiển thị phần điều khiển
+                controlsContainer.classList.remove('hidden');
+                outputContainer.classList.add('hidden'); // Ẩn kết quả cũ nếu có
+                processButton.disabled = true; // Vô hiệu hóa nút xử lý
+            };
+            reader.readAsArrayBuffer(file);
+        });
+        
+        // Kích hoạt nút "Bắt đầu trộn" khi người dùng đã chọn một sheet
+        sheetSelector.addEventListener('change', () => {
+            processButton.disabled = !sheetSelector.value;
+        });
+
+        // Hàm xử lý chính khi nhấn nút "Bắt đầu trộn"
+        processButton.addEventListener('click', () => {
+            const sheetName = sheetSelector.value;
+            if (!sheetName) {
+                alert('Vui lòng chọn một sheet để xử lý.');
+                return;
+            }
+
+            // Chuyển sheet thành dạng mảng các mảng (array of arrays)
+            const worksheet = workbook.Sheets[sheetName];
+            const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+            if (data.length < 2) {
+                alert('Sheet được chọn không có đủ dữ liệu (cần ít nhất 1 dòng header và 1 dòng câu hỏi).');
+                return;
+            }
+
+            // Tách dòng header và các dòng dữ liệu (câu hỏi)
+            const header = data[0];
+            let questions = data.slice(1);
+
+            // 1. Trộn thứ tự các câu hỏi
+            shuffleArray(questions);
+
+            // 2. Trộn thứ tự đáp án nếu người dùng chọn
+            if (shuffleAnswersCheckbox.checked) {
+                questions.forEach(questionRow => {
+                    // Các đáp án nằm ở cột C đến H (index 2 đến 7)
+                    const answersPart = questionRow.slice(2, 8);
+                    
+                    // Lọc ra các đáp án có nội dung (không rỗng, không null/undefined)
+                    const existingAnswers = answersPart.filter(ans => ans != null && ans.toString().trim() !== '');
+                    
+                    // Trộn các đáp án có nội dung này
+                    shuffleArray(existingAnswers);
+                    
+                    // Gán lại các đáp án đã trộn vào hàng câu hỏi, giữ nguyên các ô trống
+                    for(let i = 0; i < existingAnswers.length; i++) {
+                        questionRow[i + 2] = existingAnswers[i];
+                    }
+                });
+            }
+            
+            // Ghép lại header và dữ liệu đã xử lý
+            processedData = [header, ...questions];
+
+            // Hiển thị kết quả và nút tải về
+            displayPreview(processedData);
+            outputContainer.classList.remove('hidden');
+        });
+
+        // Hàm tải file Excel đã trộn
+        downloadButton.addEventListener('click', () => {
+            // Tạo một worksheet mới từ dữ liệu đã xử lý
+            const newWorksheet = XLSX.utils.aoa_to_sheet(processedData);
+            // Tạo một workbook mới
+            const newWorkbook = XLSX.utils.book_new();
+            // Thêm worksheet vào workbook
+            XLSX.utils.book_append_sheet(newWorkbook, newWorksheet, 'BoDeDaTron');
+            // Xuất file
+            XLSX.writeFile(newWorkbook, 'BoCauHoi_DaTron.xlsx');
+        });
+
+        /**
+         * Hàm trộn một mảng sử dụng thuật toán Fisher-Yates.
+         * @param {Array} array Mảng cần trộn.
+         */
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]]; // ES6 swap
+            }
+        }
+
+        /**
+         * Hàm hiển thị dữ liệu xem trước trong bảng.
+         * @param {Array<Array<any>>} data Dữ liệu để hiển thị.
+         */
+        function displayPreview(data) {
+            resultTable.innerHTML = ''; // Xóa nội dung cũ
+            const header = data[0];
+            const previewData = data.slice(1, 11); // Chỉ hiển thị 10 dòng đầu
+
+            // Tạo a header
+            const thead = document.createElement('thead');
+            thead.className = "bg-gray-200 text-gray-700";
+            const headerRow = document.createElement('tr');
+            header.forEach(text => {
+                const th = document.createElement('th');
+                th.className = "p-3 font-semibold tracking-wide text-left";
+                th.textContent = text;
+                headerRow.appendChild(th);
+            });
+            thead.appendChild(headerRow);
+            resultTable.appendChild(thead);
+
+            // Tạo body
+            const tbody = document.createElement('tbody');
+            tbody.className = "divide-y divide-gray-200";
+            previewData.forEach(rowData => {
+                const tr = document.createElement('tr');
+                tr.className = "bg-white hover:bg-gray-50";
+                rowData.forEach(cellData => {
+                    const td = document.createElement('td');
+                    td.className = "p-3 text-gray-700 whitespace-nowrap";
+                    td.textContent = cellData;
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            });
+            resultTable.appendChild(tbody);
+        }
+    </script>
+</body>
+</html>
+
+
