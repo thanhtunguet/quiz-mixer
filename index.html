@@ -193,7 +193,6 @@
             }
 
             const header = data[0];
-            // Lọc bỏ các hàng trống, chỉ giữ lại các hàng có nội dung câu hỏi ở cột B (index 1)
             let questions = data.slice(1).filter(row => row && row[1] && row[1].toString().trim() !== '');
 
             if (questions.length === 0) {
@@ -201,24 +200,49 @@
                 return;
             }
 
-            // Lấy số lần trộn từ người dùng
             const shuffleCount = parseInt(shuffleCountInput.value, 10) || 1;
 
             for (let i = 0; i < shuffleCount; i++) {
-                // 1. Trộn thứ tự các câu hỏi
                 shuffleArray(questions);
+            }
 
-                // 2. Trộn thứ tự đáp án nếu người dùng chọn
-                if (shuffleAnswersCheckbox.checked) {
-                    questions.forEach(questionRow => {
-                        const answersPart = questionRow.slice(2, 8);
-                        const existingAnswers = answersPart.filter(ans => ans != null && ans.toString().trim() !== '');
-                        shuffleArray(existingAnswers);
-                        for (let j = 0; j < 6; j++) {
-                            questionRow[j + 2] = j < existingAnswers.length ? existingAnswers[j] : '';
-                        }
-                    });
-                }
+            // Trộn đáp án và cập nhật đáp án đúng (nếu được chọn)
+            if (shuffleAnswersCheckbox.checked) {
+                questions.forEach(questionRow => {
+                    // Lấy ký tự đáp án đúng (ví dụ: 'A', 'B') và chuẩn hóa
+                    const correctAnswerLetter = (questionRow[8] || '').toString().trim().toUpperCase();
+                    if (!correctAnswerLetter) return; // Bỏ qua nếu câu hỏi không có đáp án đúng
+
+                    // Chuyển ký tự đáp án (A,B,C...) thành index tương ứng (0,1,2...)
+                    const originalCorrectAnswerIndex = correctAnswerLetter.charCodeAt(0) - 'A'.charCodeAt(0);
+
+                    // Kiểm tra xem index có hợp lệ không (A-F -> 0-5)
+                    if (originalCorrectAnswerIndex < 0 || originalCorrectAnswerIndex > 5) return;
+
+                    // Lấy nội dung text của đáp án đúng. Cột C là index 2, nên vị trí text = index + 2
+                    const correctAnswerText = questionRow[originalCorrectAnswerIndex + 2];
+                    if (correctAnswerText === undefined || correctAnswerText === null) return;
+
+                    // Lấy danh sách các đáp án có nội dung từ cột C đến H (index 2-7)
+                    const answersPart = questionRow.slice(2, 8);
+                    const existingAnswers = answersPart.filter(ans => ans != null && ans.toString().trim() !== '');
+
+                    // Trộn các đáp án có nội dung này
+                    shuffleArray(existingAnswers);
+
+                    // Tìm vị trí mới của đáp án đúng trong mảng đã trộn
+                    const newCorrectAnswerIndex = existingAnswers.findIndex(ans => ans === correctAnswerText);
+
+                    // Cập nhật lại cột đáp án đúng với ký tự mới (A, B, C...)
+                    if (newCorrectAnswerIndex !== -1) {
+                        questionRow[8] = String.fromCharCode('A'.charCodeAt(0) + newCorrectAnswerIndex);
+                    }
+
+                    // Gán lại các đáp án đã trộn vào hàng câu hỏi, và làm trống các ô không dùng
+                    for (let j = 0; j < 6; j++) {
+                        questionRow[j + 2] = j < existingAnswers.length ? existingAnswers[j] : '';
+                    }
+                });
             }
 
             // Đánh lại số thứ tự cho cột A sau khi đã trộn xong
@@ -245,26 +269,19 @@
             }
         }
 
-        /**
-         * Hàm hiển thị dữ liệu xem trước trong bảng.
-         * @param {Array<Array<any>>} data Dữ liệu để hiển thị.
-         */
         function displayPreview(data) {
             resultTable.innerHTML = '';
-            const header = data[0]; // Giả sử header là ["STT", "Câu hỏi", ...]
+            const header = data[0];
             const previewData = data.slice(1, 11);
 
-            // Tạo a header
             const thead = document.createElement('thead');
             thead.className = "bg-gray-200 text-gray-700";
             const headerRow = document.createElement('tr');
 
-            // CẬP NHẬT: Thêm một ô th trống ở đầu để căn chỉnh với cột STT của body
             const emptyTh = document.createElement('th');
             emptyTh.className = "p-3 font-semibold tracking-wide";
-            headerRow.appendChild(emptyTh); // Ô này để trống
+            headerRow.appendChild(emptyTh);
 
-            // Bắt đầu lặp từ phần tử thứ hai của header (index 1), để hiển thị các tiêu đề cột dữ liệu
             header.slice(1).forEach(text => {
                 const th = document.createElement('th');
                 th.className = "p-3 font-semibold tracking-wide";
@@ -274,14 +291,12 @@
             thead.appendChild(headerRow);
             resultTable.appendChild(thead);
 
-            // Tạo body
             const tbody = document.createElement('tbody');
             tbody.className = "divide-y divide-gray-200";
             previewData.forEach(rowData => {
                 const tr = document.createElement('tr');
                 tr.className = "bg-white hover:bg-gray-50";
                 rowData.forEach((cellData, index) => {
-                    // Cột đầu tiên (STT) dùng thẻ <th> để nhấn mạnh
                     const cell = index === 0 ? document.createElement('th') : document.createElement('td');
                     if (index === 0) {
                         cell.scope = "row";
